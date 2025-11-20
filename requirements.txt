@@ -1,0 +1,26 @@
+# Core Streamlit App
+streamlit>=1.35.0
+
+# PDF Processing
+PyPDF2>=3.0.1
+fitz  # Alias for PyMuPDF, but install as: pymupdf
+pymupdf>=1.22.5
+
+# Text Summarization & Flashcards
+transformers>=4.41.0
+torch>=2.2.0
+
+# Lottie Animation Support
+streamlit-lottie>=0.0.5
+
+# Image Handling
+Pillow>=10.2.0
+
+# Audio Podcast Generation
+gTTS>=2.5.1
+
+# Environment Variables
+python-dotenv>=1.0.1
+
+# GROQ API Client
+groq>=0.5.0
