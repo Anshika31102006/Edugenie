@@ -200,12 +200,13 @@ def run_flashcard_generator():
             
             card_html = f"""
             <div style="
-                background: rgba(255, 255, 255, 0.85);
-                border: 1px solid rgba(0, 123, 255, 0.2);
+                background: rgba(20, 20, 35, 0.65);
+                border: 1px solid rgba(169, 112, 255, 0.25);
                 border-radius: 16px;
                 padding: 40px;
                 text-align: center;
-                box-shadow: 0 4px 20px rgba(0, 123, 255, 0.1);
+                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+                backdrop-filter: blur(8px);
                 min-height: 180px;
                 display: flex;
                 align-items: center;
@@ -213,8 +214,8 @@ def run_flashcard_generator():
                 flex-direction: column;
                 margin-bottom: 20px;
             ">
-                <h4 style="color: #007BFF; margin-bottom: 10px; font-family: 'Segoe UI', sans-serif;">{card_side}</h4>
-                <p style="font-size: 1.3rem; font-weight: 500; color: #0d47a1; font-family: 'Segoe UI', sans-serif;">{card_text}</p>
+                <h4 style="color: #00f0ff; margin-bottom: 10px; font-family: 'Outfit', sans-serif; letter-spacing: 1px;">{card_side}</h4>
+                <p style="font-size: 1.35rem; font-weight: 500; color: #ffffff; font-family: 'Outfit', sans-serif; line-height: 1.5;">{card_text}</p>
             </div>
             """
             st.markdown(card_html, unsafe_allow_html=True)
@@ -235,7 +236,7 @@ def run_flashcard_generator():
                     st.session_state.fc_flipped = False
                     st.rerun()
                     
-            st.markdown(f"<p style='text-align:center; color:#0d47a1; font-weight: 600;'>Card {current_idx + 1} of {len(flashcards)}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align:center; color:#00f0ff; font-weight: 600; font-family: Outfit, sans-serif;'>Card {current_idx + 1} of {len(flashcards)}</p>", unsafe_allow_html=True)
         else:
             st.warning("⚠️ No flashcards could be parsed from the generated output.")
 

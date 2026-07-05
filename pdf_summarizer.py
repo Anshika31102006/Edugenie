@@ -129,36 +129,6 @@ from groq import Groq
 
 load_dotenv()
 
-# 💜 Apply purple UI theme
-st.markdown("""
-<style>
-div[data-testid="stFileUploader"] label { display: none !important; }
-div[data-testid="stFileUploader"] {
-    background-color: #f1e6ff !important;
-    border: 2px solid #5e1f8c !important;
-    border-radius: 12px !important;
-    padding: 20px !important;
-    margin-bottom: 25px !important;
-}
-div[data-testid="stFileDropzone"] {
-    background-color: #f1e6ff !important;
-    color: #5e1f8c !important;
-    border: 1px dashed #b57cff !important;
-    border-radius: 10px !important;
-}
-[data-testid="stNotificationContentInfo"],
-[data-testid="stNotificationContentSuccess"],
-[data-testid="stNotificationContentError"] {
-    color: #5e1f8c !important;
-    font-family: 'Segoe UI', sans-serif !important;
-}
-h1, h2, h3, h4, h5, h6, .stMarkdown p {
-    color: #5e1f8c !important;
-    font-family: 'Segoe UI', sans-serif !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # 🧹 Clean text
 def clean_text(text):
     text = text.replace('\u00a0', ' ')
