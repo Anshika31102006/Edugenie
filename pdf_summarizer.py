@@ -125,15 +125,9 @@ import textwrap
 import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
+from groq import Groq
 
-# 🟣 Load OpenAI Key
 load_dotenv()
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    st.error("❌ OPENAI_API_KEY not found in .env file.")
-    st.stop()
-
-client = OpenAI(api_key=api_key)
 
 # 💜 Apply purple UI theme
 st.markdown("""
@@ -184,8 +178,8 @@ def chunk_text(text, chunk_size=3000):
     words = text.split()
     return [' '.join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
 
-# 🧠 Summarize one chunk using OpenAI
-def summarize_chunk(chunk):
+# 🧠 Summarize one chunk using selected API provider
+def summarize_chunk(chunk, client, provider):
     prompt = f"""
     Summarize the following text into clear, concise bullet points focusing on key ideas, definitions, and facts.
 
@@ -197,15 +191,51 @@ def summarize_chunk(chunk):
     • Point 2
     • Point 3
     """
+    model = "gpt-4o-mini" if provider == "OpenAI" else "llama-3.3-70b-versatile"
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # very fast + cost-efficient
+            model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"⚠️ Error summarizing chunk: {e}"
+        return f"⚠️ Error summarizing chunk via {provider}: {e}"
+
+# 🧠 Local extractive summarization fallback (No API Key required)
+def local_summarize(text, num_bullets=10):
+    sentences = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+    if not sentences:
+        return "• No clear sentences could be extracted from this PDF for the summary."
+    
+    # Simple word frequency scoring (Luhn's Algorithm)
+    words = re.findall(r'\w+', text.lower())
+    stopwords = set(['the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'to', 'of', 'in', 'for', 'on', 'with', 'as', 'at', 'by', 'an', 'be', 'this', 'that', 'from', 'it', 'its', 'they', 'them', 'you', 'your', 'i', 'we', 'us', 'our'])
+    word_freq = {}
+    for w in words:
+        if w not in stopwords:
+            word_freq[w] = word_freq.get(w, 0) + 1
+            
+    sentence_scores = []
+    for s in sentences:
+        score = 0
+        s_words = re.findall(r'\w+', s.lower())
+        for w in s_words:
+            if w in word_freq:
+                score += word_freq[w]
+        sentence_scores.append((score / max(1, len(s_words)), s))
+        
+    sentence_scores.sort(key=lambda x: x[0], reverse=True)
+    top_sentences = sentence_scores[:num_bullets]
+    
+    summary_bullets = []
+    for s in sentences:
+        if s in [x[1] for x in top_sentences]:
+            summary_bullets.append(f"• {s}")
+            if len(summary_bullets) >= num_bullets:
+                break
+    return "\n\n".join(summary_bullets)
 
 # 🚀 Main Streamlit UI
 def run_pdf_summarizer():
@@ -218,29 +248,40 @@ def run_pdf_summarizer():
     uploaded_file = st.file_uploader("📄 Upload your PDF", type=["pdf"])
 
     if uploaded_file:
-        st.info("⏳ Extracting and summarizing your document...")
+        provider = st.session_state.get("llm_provider", "Offline / Local Mode (Free)")
+        api_key = st.session_state.get("api_key") or os.getenv(f"{provider.upper()}_API_KEY")
+
+        if provider != "Offline / Local Mode (Free)" and not api_key:
+            st.warning(f"🔑 {provider} API Key is missing. Please provide it in the sidebar or select 'Offline / Local Mode (Free)' to run for free.")
+            return
 
         try:
+            st.info("⏳ Extracting text from PDF...")
             text = extract_text_from_pdf(uploaded_file)
             if not text.strip():
                 st.error("❌ No readable text found in the PDF.")
                 return
 
             text = clean_text(text)
-            chunks = chunk_text(text, 3000)
 
-            st.markdown(f"📚 **Total chunks:** {len(chunks)} (each summarized separately)")
-            summary_output = []
+            if provider == "Offline / Local Mode (Free)":
+                st.info("⏳ Running local extractive summarizer...")
+                final_summary = local_summarize(text)
+            else:
+                client = OpenAI(api_key=api_key) if provider == "OpenAI" else Groq(api_key=api_key)
+                st.info(f"⏳ Querying {provider} to summarize your document...")
+                chunks = chunk_text(text, 3000)
+                st.markdown(f"📚 **Total chunks:** {len(chunks)} (each summarized separately)")
+                summary_output = []
 
-            progress = st.progress(0)
-            for i, chunk in enumerate(chunks):
-                part_summary = summarize_chunk(chunk)
-                summary_output.append(part_summary)
-                progress.progress((i + 1) / len(chunks))
+                progress = st.progress(0)
+                for i, chunk in enumerate(chunks):
+                    part_summary = summarize_chunk(chunk, client, provider)
+                    summary_output.append(part_summary)
+                    progress.progress((i + 1) / len(chunks))
+                progress.empty()
+                final_summary = "\n\n".join(summary_output)
 
-            progress.empty()
-
-            final_summary = "\n\n".join(summary_output)
             st.success("✅ Summary Generated!")
             st.markdown("<h3 style='color: #5e1f8c;'>📌 Summary:</h3>", unsafe_allow_html=True)
             st.markdown(f"<div style='color: #5e1f8c; white-space: pre-wrap; font-family: Segoe UI;'>{final_summary}</div>", unsafe_allow_html=True)

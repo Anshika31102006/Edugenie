@@ -128,7 +128,6 @@
 import streamlit as st
 from dotenv import load_dotenv
 import os
-from openai import OpenAI
 
 # Import tool modules
 from pdf_summarizer import run_pdf_summarizer
@@ -138,12 +137,6 @@ from flashcard_generator import run_flashcard_generator
 
 # Load API Key
 load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
-
-if not openai_api_key:
-    st.error("🚨 OPENAI_API_KEY not found! Please add it to your .env file.")
-else:
-    client = OpenAI(api_key=openai_api_key)
 
 # ------------------------------
 # 🌟 Streamlit Page Configuration
@@ -153,6 +146,38 @@ st.set_page_config(
     page_icon="🎓",
     layout="wide"
 )
+
+# ------------------------------
+# 🔑 Sidebar AI & API Configuration
+# ------------------------------
+st.sidebar.title("🔑 AI Settings")
+provider = st.sidebar.selectbox(
+    "Select AI Provider",
+    ["Offline / Local Mode (Free)", "OpenAI", "Groq"],
+    help="Choose 'Offline/Local Mode' to run the app for free without keys, or choose OpenAI/Groq for premium AI."
+)
+
+api_key = ""
+if provider == "OpenAI":
+    env_key = os.getenv("OPENAI_API_KEY", "")
+    api_key = st.sidebar.text_input(
+        "OpenAI API Key",
+        value=env_key,
+        type="password",
+        help="Provide your OpenAI API key."
+    )
+elif provider == "Groq":
+    env_key = os.getenv("GROQ_API_KEY", "")
+    api_key = st.sidebar.text_input(
+        "Groq API Key",
+        value=env_key,
+        type="password",
+        help="Provide your Groq API key."
+    )
+
+st.session_state.llm_provider = provider
+st.session_state.openai_api_key = api_key  # for backward compatibility
+st.session_state.api_key = api_key
 
 # ------------------------------
 # 💫 Custom CSS Styling

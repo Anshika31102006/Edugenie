@@ -1,19 +1,13 @@
 import streamlit as st
+import re
 from PyPDF2 import PdfReader
 from gtts import gTTS
 import tempfile
 import os
+import base64
 from dotenv import load_dotenv
 
-# Load environment (optional for OpenAI fallback)
 load_dotenv()
-api_key = os.getenv("OPENAI_API_KEY")
-
-try:
-    from openai import OpenAI
-    client = OpenAI(api_key=api_key) if api_key else None
-except:
-    client = None
 
 # 🧠 Extract text from selected PDF pages
 def extract_pdf_text(uploaded_file, selected_pages):
@@ -27,20 +21,27 @@ def extract_pdf_text(uploaded_file, selected_pages):
     return text.strip()
 
 # 🎧 Generate summarized text (optional)
-def summarize_text(text):
-    if not client:
-        return text[:2000]  # fallback to first 2000 chars
+def summarize_text(text, client, provider):
+    if not client or provider == "Offline / Local Mode (Free)":
+        sentences = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+        # Merge top 5 sentences
+        return "Welcome to the revision podcast. Let's cover the key points from this document. " + " ".join(sentences[:5])
+        
     try:
         prompt = f"Summarize this for a spoken podcast under 250 words:\n{text[:6000]}"
+        model = "gpt-4o-mini" if provider == "OpenAI" else "llama-3.3-70b-versatile"
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        st.warning(f"⚠ Using full text due to summarization error: {e}")
-        return text[:2000]
+        st.warning(f"⚠ Using local fallback due to {provider} error: {e}")
+        sentences = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+        return "Welcome to the revision podcast. Let's cover the key points from this document. " + " ".join(sentences[:5])
 
 # 🎤 Generate TTS audio (offline and fast)
 def generate_audio(text):
@@ -100,27 +101,51 @@ def run_podcast_generator():
     )
     speed_value = float(speed_label.replace("x", ""))
 
-    st.text_area("📜 Text Preview", full_text[:1500] + "..." if len(full_text) > 1500 else full_text, height=250)
+    st.text_area(
+        "📜 Text Preview",
+        full_text[:1500] + "..." if len(full_text) > 1500 else full_text,
+        height=250
+    )
 
     if st.button("🎧 Generate & Play Podcast"):
+        provider = st.session_state.get("llm_provider", "Offline / Local Mode (Free)")
+        api_key = st.session_state.get("api_key") or os.getenv(f"{provider.upper()}_API_KEY")
+        client = None
+        if provider != "Offline / Local Mode (Free)" and api_key:
+            try:
+                from openai import OpenAI
+                from groq import Groq
+                client = OpenAI(api_key=api_key) if provider == "OpenAI" else Groq(api_key=api_key)
+            except Exception as e:
+                st.warning(f"⚠️ Failed to initialize {provider} client: {e}")
+
         with st.spinner("🎙 Generating your podcast..."):
-            summarized = summarize_text(full_text)
+            summarized = summarize_text(full_text, client, provider)
             audio_file = generate_audio(summarized)
             if not audio_file:
                 return
             st.success("✅ Podcast Ready!")
 
-            # Custom audio player with playback rate control
+            # FIXED — SAFE BASE64 AUDIO GENERATION
+            with open(audio_file, "rb") as f:
+                audio_bytes = f.read()
+
+            audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
             audio_html = f"""
             <audio id="audioPlayer" controls>
-                <source src="data:audio/mp3;base64,{open(audio_file, 'rb').read().encode('base64').decode()}" type="audio/mp3">
+                <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
             </audio>
             <script>
                 var audio = document.getElementById("audioPlayer");
                 audio.playbackRate = {speed_value};
             </script>
             """
+
             st.markdown(audio_html, unsafe_allow_html=True)
 
             st.markdown("### 🗣 Podcast Script")
-            st.markdown(f"<div style='white-space: pre-wrap; color:white;'>{summarized}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='white-space: pre-wrap;'>{summarized}</div>",
+                unsafe_allow_html=True
+            )
